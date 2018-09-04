@@ -4,7 +4,7 @@ Very quick and dirty PoC for working around the new Nessus API restrictions to d
 # Requirements:
 - Python 3
 - spynner
-- pyside.qtwebkit
+
 
 # TODO's: 
 - check if page is rendered, using DOM testing examples from http://www.guguncube.com/2760/python-spynner-test-scripts
