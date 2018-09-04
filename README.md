@@ -1,7 +1,7 @@
 # Nessus7download
 Very quick and dirty PoC for working around the new Nessus API restrictions to download report 
 
-#requirements:
+# requirements:
 - Python 3
 - spynner
 - pyside.qtwebkit
