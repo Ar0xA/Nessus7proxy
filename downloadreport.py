@@ -54,7 +54,7 @@ def download_report(browser, scanname):
 
 #main
 hostname = "localhost:8834"
-scanname = "test"
+scanname = sys.argv[1]
 username = ""
 password = ""
 
@@ -65,7 +65,7 @@ if os.path.exists(hostname):
 
 browser = spynner.Browser(debug_level=spynner.ERROR, ignore_ssl_errors = True)
 browser.create_webview(True)
-browser.show()
+#browser.show()
 browser.load("https://"+hostname)
 wait_for_render(browser,1)
 
