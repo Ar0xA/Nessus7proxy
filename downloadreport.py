@@ -10,10 +10,17 @@ def wait_for_render(browser,secs):
     return
 
 def login(browser, username, password):
-    print ("Loging in, one moment.")
+    print ("Logging in, one moment.")
     browser.wk_fill('input[class="required login-username"]',username)
     browser.wk_fill('input[class="required login-password"]', password)
     browser.click('button[data-domselect="sign-in"]')
+    wait_for_render(browser,5)
+    findstr = 'type="password"'
+    if findstr in browser.html:
+        print ("Login failed :(")
+        return False
+    else:
+        return True
 
 def get_scan_status(doc,scanname):
     soup = BeautifulSoup(doc,'lxml')
@@ -52,6 +59,21 @@ def download_report(browser, scanname):
                     print ("Invalid report size, try again.")
                     return False
 
+def download_report(browser, scanname):
+    #get status
+    print ("\n\nTrying to get scan status for scan: %s." % (scanname))
+    status = get_scan_status(browser.html, scanname)
+
+    if status == "completed":
+        print ("Scan is done. Lets download the latest report.")
+        #the download can sometimes fail because of ajax rendering craps up.
+        result = False
+        while not result:
+            result = download_report(browser, scanname)
+    else:
+        print ("Cannot download the report, status is not \"complete\" but \"%s\"." % (status))
+        sys.exit(1)
+
 #main
 hostname = "localhost:8834"
 scanname = sys.argv[1]
@@ -65,25 +87,9 @@ if os.path.exists(hostname):
 
 browser = spynner.Browser(debug_level=spynner.ERROR, ignore_ssl_errors = True)
 browser.create_webview(True)
-#browser.show()
 browser.load("https://"+hostname)
 wait_for_render(browser,1)
 
 #logging in
-login(browser, username, password)
-wait_for_render(browser,5)
-
-#get status
-print ("\n\nTrying to get scan status for scan: %s." % (scanname))
-status = get_scan_status(browser.html, scanname)
-
-if status == "completed":
-    print ("Scan is done. Lets download the latest report.")
-    #the download can sometimes fail because of ajax rendering craps up.
-    result = False
-    while not result:
-        result = download_report(browser, scanname)
-
-else:
-    print ("Cannot download the report, status is not \"complete\" but \"%s\"." % (status))
-    sys.exit(1)
+if login(browser, username, password):
+    download_report(browser, scanname)
