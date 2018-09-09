@@ -4,6 +4,7 @@ Very quick and dirty PoC for working around the new Nessus API restrictions to d
 # Requirements:
 - Python 3
 - spynner
+- python3-pyside, python3-qtpy (debian 9) or just install python3 pyside and pyside-qt4 bindings
 
 
 # TODO's: 
