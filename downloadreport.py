@@ -1,4 +1,4 @@
-import spynner, sys, os, shutil
+import spynner, sys, os, shutil,time
 from bs4 import BeautifulSoup
 
 #we have to wait for the page to be rendered, so DOM items exist
@@ -15,11 +15,11 @@ def login(browser, username, password):
     browser.wk_fill('input[class="required login-password"]', password)
     browser.click('button[data-domselect="sign-in"]')
     wait_for_render(browser,5)
-    findstr = 'type="password"'
-    if findstr in browser.html:
-        print ("Login failed :(")
+    if 'type="password"' in browser.html:
+        print ("- Login failed :(")
         return False
     else:
+        print ("+ Login success :)")
         return True
 
 def get_scan_status(doc,scanname):
@@ -30,49 +30,74 @@ def get_scan_status(doc,scanname):
     resultset2 = soup.find("tr", {"data-name": scanname})
     return resultset2.attrs['data-status']
 
-def download_report(browser, scanname):
+def download_report(browser, scanname,renderwait):
     scandom = "td[data-order=\""+scanname+"\"]"
     browser.click(scandom)
     wait_for_render(browser,5)
     print ("Downloading the report, one moment")
     wait_for_render(browser,5)
     browser.click('li[data-value="nessus"]',wait_load=True)
+    wait_for_render(browser,renderwait)
     print ("We should have the report now, checking.")
     #it will be in "hostname/tokens/{token}/download"
     for root, dirs, files in os.walk(hostname):
         for file in files:
             if file.startswith("download"):
                 reportname = os.path.join(root,file)
-                if os.path.getsize(reportname) > 200:
-                    print ("OK, valid report.")
-                    file = open(reportname,'r')
-                    content = BeautifulSoup(file, 'lxml')
-                    result = content.report.find("tag", {"name": "HOST_END_TIMESTAMP"})
-                    #ok so now move it to the main dir
-                    #calling it <reportname>.<scandate>.nessus
-                    newname = "./"  + scanname + "." + result.get_text() + ".nessus" 
-                    shutil.move(reportname,newname)
-                    shutil.rmtree(hostname)
-                    print ("Done. Report saved as %s " % (newname))
-                    return True
-                else:
-                    print ("Invalid report size, try again.")
-                    return False
+                endstring='</NessusClientData_v2>'
+                with open(reportname,'r') as f:
+                    lines = f.read().splitlines()
+                    last_line = lines[-1]
+                    if last_line == endstring:
+                    
+                        print ("+ OK, valid report.")
+                        file = open(reportname,'r')
+                        content = BeautifulSoup(file, 'lxml')
+                        #ok so now move it to the main dir
+                        #calling it <reportname>.<scandate>.nessus
+                        #if we cant find a HOST_END_TIMESTAMP, check HOST_END
+                        result = content.report.find("tag", {"name": "HOST_END_TIMESTAMP"})
+                        if result is None:
+                            result = content.report.find("tag", {"name": "HOST_END"}).get_text()
+                            timestamp = int(time.mktime(time.strptime(result)) - time.timezone)
+                            newname = "./"  + scanname + "." + str(timestamp) + ".nessus"
+                        else:
+                            newname = "./"  + scanname + "." + result.get_text() + ".nessus" 
+                        shutil.move(reportname,newname)
+                        shutil.rmtree(hostname)
+                        print ("Done. Report saved as %s " % (newname))
+                        return True
+                    else:
+                        print ("- Not valid report ending.")
+                        return False
 
-def download_report(browser, scanname):
+def do_download_report(browser, scanname):
     #get status
     print ("\n\nTrying to get scan status for scan: %s." % (scanname))
     status = get_scan_status(browser.html, scanname)
 
     if status == "completed":
-        print ("Scan is done. Lets download the latest report.")
+        print ("+ Scan is done. Lets download the latest report.")
         #the download can sometimes fail because of ajax rendering craps up.
         result = False
+        wait_time = 10 #how long to wait for download
         while not result:
-            result = download_report(browser, scanname)
+            result = download_report(browser, scanname,wait_time)
+            wait_time += 5
+            if wait_time > 300:
+                print ("Giving up, download fails even when trying to wait 5 mins.")
+                sys.exit(1)
     else:
-        print ("Cannot download the report, status is not \"complete\" but \"%s\"." % (status))
+        print ("- Cannot download the report, status is not \"complete\" but \"%s\"." % (status))
         sys.exit(1)
+
+def check_scan_exists(browser, scanname):
+    if not scanname in browser.html:
+        print ("- Cant find scan name, I give up :(")
+        return False
+    else:
+        return True
+
 
 #main
 hostname = "localhost:8834"
@@ -92,4 +117,6 @@ wait_for_render(browser,1)
 
 #logging in
 if login(browser, username, password):
-    download_report(browser, scanname)
+    #TODO: verify if scan exists before anything else
+    if check_scan_exists(browser,scanname):
+        do_download_report(browser, scanname)
